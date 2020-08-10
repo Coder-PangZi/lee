@@ -1,4 +1,4 @@
-package lexer
+package lee
 
 func makeASCIISet(chars string) (as asciiSet, ok bool) {
 	for i := 0; i < len(chars); i++ {

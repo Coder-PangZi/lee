@@ -1,4 +1,4 @@
-package lexer
+package lee
 
 import (
 	"github.com/davecgh/go-spew/spew"
@@ -7,11 +7,13 @@ import (
 )
 
 const Code = `
-// commoent
-$a = 3
-func sum( $a)
+// comment
+// test
+var a = 3
+func sum(a)
 {
-return $a + 3}
+	return a + 3
+}
 `
 
 func TestNewLexer(t *testing.T) {
@@ -23,10 +25,10 @@ func TestNewLexer(t *testing.T) {
 			break
 		}
 		if err != nil {
-			println("出错", err.Error())
+			println("出错", l.cs.line, ":", l.cs.row, " ", err.Error())
 			spew.Dump(l.cs)
 			break
 		}
-		println(token.val.String())
+		println(token.String())
 	}
 }

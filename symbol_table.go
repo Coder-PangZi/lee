@@ -1,10 +1,10 @@
-package parser
+package lee
 
 import "unsafe"
 
 type symbol struct {
 	id   SymbolID
-	kind SymbolType
+	kind TypeSymbol
 	val  unsafe.Pointer
 }
 

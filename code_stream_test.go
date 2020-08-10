@@ -1,4 +1,4 @@
-package lexer
+package lee
 
 import (
 	"testing"
