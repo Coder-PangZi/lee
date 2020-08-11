@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 type Device int
 type Operator int
 type Target interface{}
@@ -32,8 +34,9 @@ const (
 )
 
 type OPMap map[string]Operator
+type OPMap2 map[Operator]string
 
-var mOPMap = OPMap{
+var mOPMapNames = OPMap{
 	"Mouse.Click":   MouseClick,
 	"Mouse.DbClick": MouseDbClick,
 	"Mouse.Move":    MouseMove,
@@ -46,6 +49,20 @@ var mOPMap = OPMap{
 	"Key.Up":        KeyUp,
 	"Key.String":    InputString,
 	"Screen.Color":  ScreenColor,
+}
+var mOPMapEvent = OPMap2{
+	MouseClick:   "Mouse.Click",
+	MouseDbClick: "Mouse.DbClick",
+	MouseMove:    "Mouse.Move",
+	MouseSmooth:  "Mouse.Smooth",
+	MouseDown:    "Mouse.Down",
+	MouseUp:      "Mouse.Up",
+	MouseScroll:  "Mouse.Scroll",
+	KeyClick:     "Key.Click",
+	KeyDown:      "Key.Down",
+	KeyUp:        "Key.Up",
+	InputString:  "Key.String",
+	ScreenColor:  "Screen.Color",
 }
 
 type operator struct {
@@ -62,6 +79,10 @@ func newOperator(op Operator, target Target, args []interface{}) *operator {
 }
 
 func GetOpByName(name string) (Operator, bool) {
-	op, ok := mOPMap[name]
+	op, ok := mOPMapNames[name]
 	return op, ok
+}
+
+func (o *operator) String() string {
+	return fmt.Sprintf("[%s]\t%s:\t%v", mOPMapEvent[o.Op], o.Target, o.Args)
 }

@@ -3,14 +3,15 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"flag"
 	"fmt"
 	"github.com/go-vgo/robotgo"
 	"io"
 	"log"
-	"os"
 	"os/exec"
+	"reflect"
+	"strconv"
 	"strings"
+	"unsafe"
 )
 
 const (
@@ -32,14 +33,47 @@ func init() {
 	}
 }
 
+const sc = `
+Mouse.Move	100,500
+Mouse.Click  left
+Mouse.Move	200,500
+Mouse.Down left
+Mouse.Move	500,500
+Mouse.Up left
+Mouse.DbClick left 600,500 
+Mouse.Move	700,500
+Mouse.Down left
+Mouse.Smooth	1000,500
+Mouse.Scroll	down 5
+Mouse.Up left
+//
+Mouse.Move 3000,500
+Mouse.Click  left
+Key.Click a
+Key.Down w
+Key.Up w
+Key.String hello
+Screen.Color
+`
+
 func main() {
-	fileName := flag.String("file", "", "please point to a code file")
-	flag.Parse()
-	fd, err := os.Open(*fileName)
+	//fileName := flag.String("f", "", "please point to a code file")
+	//flag.Parse()
+	//fd, err := os.Open(*fileName)
+	//if err != nil {
+	//	panic(err.Error())
+	//}
+	fd := strings.NewReader(sc)
+	ops, err := parse(fd)
 	if err != nil {
-		panic(err.Error())
+		panic(err)
 	}
-	parse(fd)
+	for _, op := range ops {
+		err := eval(op)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 }
 
@@ -47,10 +81,11 @@ func parse(file io.Reader) ([]*operator, error) {
 
 	var line = 0
 	ops := make([]*operator, 0)
+	reader := bufio.NewReader(file)
 	for {
 		line++
 		// 读取一行
-		buf, toolong, err := bufio.NewReader(file).ReadLine()
+		buf, toolong, err := reader.ReadLine()
 		if toolong {
 			return nil, fmt.Errorf("code line [%d] is too long", line)
 		}
@@ -63,10 +98,14 @@ func parse(file io.Reader) ([]*operator, error) {
 		// 去除空格字符
 		buf = bytes.TrimLeft(buf, " \r\n\t")
 		// 跳过注释
-		if len(buf) > 1 && buf[0] == '/' && buf[1] == '/' {
+		if len(buf) == 0 || (len(buf) > 1 && buf[0] == '/' && buf[1] == '/') {
 			continue
 		}
-		ops = append(ops, parseLine(buf))
+		op, err := parseLine(buf)
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, op)
 	}
 	return ops, nil
 }
@@ -78,11 +117,11 @@ func (as *asciiSet) contains(c uint8) bool {
 func parseLine(buf []byte) (*operator, error) {
 	length := len(buf)
 	var cache bytes.Buffer
-	var args = make([][]byte, 0)
+	var args = make([][]byte, 0, 3)
 	for i := 0; i < length; i++ {
 		if spaceCharAS.contains(buf[i]) {
 			if cache.Len() > 0 {
-				args = append(args, cache.Bytes())
+				args = append(args, copyByteSlice(cache.Bytes()))
 				cache.Reset()
 			}
 			continue
@@ -90,7 +129,7 @@ func parseLine(buf []byte) (*operator, error) {
 		cache.WriteByte(buf[i])
 	}
 	if cache.Len() > 0 {
-		args = append(args, cache.Bytes())
+		args = append(args, copyByteSlice(cache.Bytes()))
 	}
 	cache.Reset()
 	op := operator{}
@@ -117,7 +156,7 @@ func parseLine(buf []byte) (*operator, error) {
 		}
 		fallthrough
 	case 1:
-		opt, ok := GetOpByName(string(buf[0]))
+		opt, ok := GetOpByName(string(args[0]))
 		if !ok {
 			return nil, fmt.Errorf("unknow operator: %s", buf)
 		}
@@ -126,6 +165,12 @@ func parseLine(buf []byte) (*operator, error) {
 		return nil, fmt.Errorf("error line: %s", buf)
 	}
 	return &op, nil
+}
+
+func copyByteSlice(src []byte) []byte {
+	dst := make([]byte, len(src))
+	copy(dst, src)
+	return dst
 }
 
 func makeASCIISet(chars string) (as asciiSet, ok bool) {
@@ -139,45 +184,66 @@ func makeASCIISet(chars string) (as asciiSet, ok bool) {
 	return as, true
 }
 
-func eval(op *operator) interface{} {
+func eval(op *operator) error {
+	println(op.String())
 	switch op.Op {
 	case MouseClick:
-		robotgo.MouseClick(op.Target.(string), false)
+		robotgo.MouseClick(byte2String(op.Target.([]byte)), false)
 	case MouseDbClick:
-		robotgo.MouseClick(op.Target.(string), true)
+		robotgo.MouseClick(byte2String(op.Target.([]byte)), true)
 	case MouseMove:
-		target, ok := op.Target.([]int)
+		target, ok := op.Target.([]interface{})
 		if !ok {
-			return nil
+			return fmt.Errorf("wrong target of MouseMove event")
 		}
-		robotgo.Move(target[0], target[1])
+		pos, err := interfaceSlice2IntSlice(target)
+		if err != nil {
+			return err
+		}
+		robotgo.Move(pos[0], pos[1])
 	case MouseSmooth:
-		target, ok := op.Target.([]int)
+		target, ok := op.Target.([]interface{})
 		if !ok {
-			return nil
+			return fmt.Errorf("wrong target of MouseMove event")
 		}
-		robotgo.MoveSmooth(target[0], target[1], op.Args...)
+		pos, err := interfaceSlice2IntSlice(target)
+		if err != nil {
+			return err
+		}
+		robotgo.MoveSmooth(pos[0], pos[1], op.Args...)
 	case MouseDown:
-		robotgo.MouseToggle("down", op.Target.(string))
+		robotgo.MouseToggle("down", byte2String(op.Target.([]byte)))
 	case MouseUp:
-		robotgo.MouseToggle("up", op.Target.(string))
+		robotgo.MouseToggle("up", byte2String(op.Target.([]byte)))
 	case MouseScroll:
 		if len(op.Args) == 1 {
-			robotgo.ScrollMouse(op.Args[0].(int), op.Target.(string))
+			d, err := strconv.Atoi(op.Args[0].(string))
+			if err != nil {
+				return err
+			}
+			robotgo.ScrollMouse(d, byte2String(op.Target.([]byte)))
 		}
 	case KeyClick:
-		robotgo.KeyTap(op.Target.(string), op.Args...)
+		robotgo.KeyTap(byte2String(op.Target.([]byte)), op.Args...)
 	case KeyDown:
-		robotgo.KeyToggle(op.Target.(string), "down")
+		robotgo.KeyToggle(byte2String(op.Target.([]byte)), "down")
 	case KeyUp:
-		robotgo.KeyToggle(op.Target.(string), "up")
+		robotgo.KeyToggle(byte2String(op.Target.([]byte)), "up")
 	case InputString:
-		robotgo.TypeStr(op.Target.(string))
+		robotgo.TypeStr(byte2String(op.Target.([]byte)))
 	case ScreenColor:
 		robotgo.GetPixelColor(robotgo.GetMousePos())
 	}
 
 	return nil
+}
+
+func byte2String(src []byte) (dst string) {
+	pBytes := (*reflect.SliceHeader)(unsafe.Pointer(&src))
+	pString := (*reflect.StringHeader)(unsafe.Pointer(&dst))
+	pString.Data = pBytes.Data
+	pString.Len = pBytes.Len
+	return
 }
 
 func runCmd(str string) {
@@ -196,3 +262,25 @@ func runCmd(str string) {
 	}
 	fmt.Println(out.String())
 }
+
+func interfaceSlice2IntSlice(src []interface{}) ([]int, error) {
+	var err error
+	var dstInt = make([]int, len(src), len(src))
+	for i, arg := range src {
+		argStr, ok := arg.(string)
+		if !ok {
+			return nil, fmt.Errorf("wrong type:[%T] %v", arg, arg)
+		}
+		dstInt[i], err = strconv.Atoi(argStr)
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return dstInt, nil
+}
+
+//func getPosFromStrSliceX(src []interface{}) (x, y int, err error) {
+//	pString := (*reflect.StringHeader)(unsafe.Pointer(&src))
+//	return interfaceSlice2IntSlice(pString)
+//}
