@@ -1,12 +1,29 @@
 package main
 
-func main() {
-	ch := make(chan int, 1)
+import (
+	"fmt"
+	"time"
+)
 
-	ch <- 1
-	close(ch)
-	dat1, ok1 := <-ch
-	dat2, ok2 := <-ch
-	println(dat1, ok1)
-	println(dat2, ok2)
+func main() {
+	sum()
+}
+
+func sum() {
+	defer stat()()
+	time.Sleep(time.Second / 2)
+}
+
+func stat() func() {
+	st := time.Now()
+	return func() {
+		dt := time.Since(st).Nanoseconds()
+		sec := dt / int64(time.Second)
+		dt = dt % int64(time.Second)
+		mill := dt / int64(time.Millisecond)
+		dt = dt % int64(time.Millisecond)
+		micro := dt / int64(time.Microsecond)
+		nano := dt % int64(time.Microsecond)
+		fmt.Printf("%02d:%02d:%02d:%02d", sec, mill, micro, nano)
+	}
 }

@@ -1,85 +1,186 @@
+// token 包内的结构以用于记录词法分析结果
+// 及其相关附加信息，比如如位置信息
+
 package token
 
-import (
-	"bytes"
-	"fmt"
-)
+import "fmt"
 
-type Type int
+// Token 表示词法分析的结果
+type Token int
 
 const (
-	_ Type = iota
-	type_beg
-	TypeReserve // 保留字
-	TypeBoundary
-	TypeOperator
-	TypeIdent
-	TypeNumber
-	TypeString
-	type_end
+	ILLEGAL Token = iota
+	EOF
+	COMMENT
+
+	LiteralBeg
+	IDENT  // main
+	INT    // 12345
+	FLOAT  // 123.45
+	CHAR   // 'a'
+	STRING // "abc"
+	LiteralEnd
+
+	OperatorBeg
+	ADD        // +
+	SUB        // -
+	MUL        // *
+	QUO        // /
+	REM        // %
+	ADD_ASSIGN // +=
+	SUB_ASSIGN // -=
+	MUL_ASSIGN // *=
+	QUO_ASSIGN // /=
+	REM_ASSIGN // %=
+
+	LAND // &&
+	LOR  // ||
+	INC  // ++
+	DEC  // --
+
+	EQL    // ==
+	LSS    // <
+	GTR    // >
+	ASSIGN // =
+	NOT    // !
+
+	NEQ // !=
+	LEQ // <=
+	GEQ // >=
+
+	LPAREN    // (
+	LBRACK    // [
+	LBRACE    // {
+	COMMA     // ,
+	PERIOD    // .
+	RPAREN    // )
+	RBRACK    // ]
+	RBRACE    // }
+	SEMICOLON // ;
+	COLON     // :
+	OperatorEnd
+
+	KeywordBeg
+	BREAK
+	CONTINUE
+	ELSE
+	FOR
+
+	FUNC
+	IF
+
+	RETURN
+	VAR
+	KeywordEnd
 )
 
-var TypeNames = map[Type]string{
-	TypeReserve:  "保留字",
-	TypeBoundary: "定界符",
-	TypeOperator: "操作符",
-	TypeIdent:    "标识符",
-	TypeNumber:   "数类型",
-	TypeString:   "字符串",
+var tokens = [...]string{
+	ILLEGAL: "ILLEGAL",
+
+	EOF:     "EOF",
+	COMMENT: "COMMENT",
+
+	IDENT:  "IDENT",
+	INT:    "INT",
+	FLOAT:  "FLOAT",
+	CHAR:   "CHAR",
+	STRING: "STRING",
+
+	ADD: "+",
+	SUB: "-",
+	MUL: "*",
+	QUO: "/",
+	REM: "%",
+
+	ADD_ASSIGN: "+=",
+	SUB_ASSIGN: "-=",
+	MUL_ASSIGN: "*=",
+	QUO_ASSIGN: "/=",
+	REM_ASSIGN: "%=",
+
+	LAND: "&&",
+	LOR:  "||",
+	INC:  "++",
+	DEC:  "--",
+
+	EQL:    "==",
+	LSS:    "<",
+	GTR:    ">",
+	ASSIGN: "=",
+	NOT:    "!",
+
+	NEQ: "!=",
+	LEQ: "<=",
+	GEQ: ">=",
+
+	LPAREN: "(",
+	LBRACK: "[",
+	LBRACE: "{",
+	COMMA:  ",",
+	PERIOD: ".",
+
+	RPAREN:    ")",
+	RBRACK:    "]",
+	RBRACE:    "}",
+	SEMICOLON: ";",
+	COLON:     ":",
+
+	BREAK:    "break",
+	CONTINUE: "continue",
+
+	ELSE: "else",
+	FOR:  "for",
+
+	FUNC: "func",
+	IF:   "if",
+
+	RETURN: "return",
+	VAR:    "var",
 }
 
-var Reserve = map[string]struct{}{
-	"var":       {},
-	"true":      {},
-	"false":     {},
-	"null":      {},
-	"undefined": {},
-	"import":    {},
-	"function":  {},
-	"new":       {},
-	"if":        {},
-	"return":    {},
-	"break":     {},
-	"continue":  {},
-	"while":     {},
-	"switch":    {},
-	"case":      {},
-	"default":   {},
-	"typeof":    {},
-	"try":       {},
-	"catch":     {},
-	"finally":   {},
-	"for":       {},
-	"else":      {},
+func (tok Token) String() string {
+	s := ""
+	if 0 <= tok && tok < Token(len(tokens)) {
+		s = tokens[tok]
+	}
+	if s == "" {
+		s = fmt.Sprintf("token(%d)", tok)
+	}
+	return s
 }
 
-type token struct {
-	buf  bytes.Buffer
-	Type Type
-	line uint32
-	row  uint32
+type KeyWords map[string]Token
+
+var keywords KeyWords
+
+func (kw KeyWords) LookUp(ident string) (Token, bool) {
+	tok, is := kw[ident]
+	return tok, is
 }
 
-func newReserveToken(line uint32, row uint32) *token {
-	return &token{Type: TypeReserve, line: line, row: row}
+func init() {
+	keywords = make(KeyWords)
+	for i := KeywordBeg + 1; i < KeywordEnd; i++ {
+		keywords[i.String()] = i
+	}
 }
 
-func newBoundaryToken(line uint32, row uint32) *token {
-	return &token{Type: TypeBoundary, line: line, row: row}
+func Type(ident string) Token {
+	if tok, is := keywords.LookUp(ident); is {
+		return tok
+	}
+	return IDENT
 }
 
-func newOperatorToken(line uint32, row uint32) *token {
-	return &token{Type: TypeOperator, line: line, row: row}
-}
+// IsLiteral 返回 token 类型是否为字面量类型。
+// @return bool
+//
+func (tok Token) IsLiteral() bool { return LiteralBeg < tok && tok < LiteralEnd }
 
-func newNumberToken(line uint32, row uint32) *token {
-	return &token{Type: TypeNumber, line: line, row: row}
-}
+// IsOperator 返回 token 类型是否为操作符。
+//
+func (tok Token) IsOperator() bool { return OperatorBeg < tok && tok < OperatorEnd }
 
-func newIdentifierToken(line uint32, row uint32) *token {
-	return &token{Type: TypeIdent, line: line, row: row}
-}
-
-func (t *token) String() string {
-	return fmt.Sprintf("[%s][%d:%d]\t%s", TypeNames[t.Type], t.line, t.row, t.buf.String())
-}
+// IsKeyword 返回 token 类型是否为关键字
+//
+func (tok Token) IsKeyword() bool { return KeywordBeg < tok && tok < KeywordEnd }

@@ -54,3 +54,7 @@ func BenchmarkFY(b *testing.B) {
 		AlgoFisherYates(s)
 	}
 }
+
+func TestMMap(t *testing.T) {
+
+}

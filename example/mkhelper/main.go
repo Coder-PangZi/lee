@@ -7,8 +7,10 @@ import (
 	"github.com/go-vgo/robotgo"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"reflect"
+	"runtime/trace"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -34,26 +36,26 @@ func init() {
 }
 
 const sc = `
-Mouse.Move	100,500
-Mouse.Click  left
-Mouse.Move	200,500
-Mouse.Down left
-Mouse.Move	500,500
-Mouse.Up left
-Mouse.DbClick left 600,500 
-Mouse.Move	700,500
-Mouse.Down left
-Mouse.Smooth	1000,500
-Mouse.Scroll	down 5
-Mouse.Up left
-//
-Mouse.Move 3000,500
-Mouse.Click  left
-Key.Click a
-Key.Down w
-Key.Up w
-Key.String hello
-Screen.Color
+//Mouse.Move	100,500
+//Mouse.Click  left
+//Mouse.Move	200,500
+//Mouse.Down left
+//Mouse.Move	500,500
+//Mouse.Up left
+//Mouse.DbClick left 600,500 
+//Mouse.Move	700,500
+//Mouse.Down left
+//Mouse.Smooth	1000,500
+//Mouse.Scroll	down 5
+//Mouse.Up left
+////
+//Mouse.Move 3000,500
+//Mouse.Click  left
+//Key.Click a
+//Key.Down w
+//Key.Up w
+//Key.String hello
+//Screen.Color
 `
 
 func main() {
@@ -63,6 +65,8 @@ func main() {
 	//if err != nil {
 	//	panic(err.Error())
 	//}
+	_ = trace.Start(os.Stdout)
+	defer trace.Stop()
 	fd := strings.NewReader(sc)
 	ops, err := parse(fd)
 	if err != nil {
